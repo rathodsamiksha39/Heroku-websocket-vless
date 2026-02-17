@@ -1,0 +1,15 @@
+{
+  "name": "ws-forwarder",
+  "version": "1.0.0",
+  "description": "WebSocket Forwarder for VLESS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "ws": "^8.15.0"
+  }
+}
