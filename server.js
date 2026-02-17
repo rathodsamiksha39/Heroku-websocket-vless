@@ -1,48 +1,49 @@
 const http = require("http");
+const net = require("net");
+const tls = require("tls");
 const WebSocket = require("ws");
 
-const BACKEND_DOMAIN = "india.satishcdn.com";
-const BACKEND_URL = `wss://${BACKEND_DOMAIN}/`;
+const BACKEND_HOST = "india.satishcdn.com";
+const BACKEND_PORT = 443;
 
 const server = http.createServer((req, res) => {
   res.writeHead(200);
-  res.end("Heroku WS Forwarder Running");
+  res.end("Heroku TCP Tunnel Running");
 });
 
 const wss = new WebSocket.Server({ noServer: true });
 
-server.on("upgrade", (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit("connection", ws, request);
+server.on("upgrade", (req, socket, head) => {
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit("connection", ws, req);
   });
 });
 
-wss.on("connection", (clientSocket) => {
+wss.on("connection", (ws) => {
 
-  const backendSocket = new WebSocket(BACKEND_URL, {
-    rejectUnauthorized: false,
-    headers: {
-      Host: BACKEND_DOMAIN
-    }
+  // 🔥 Create raw TLS socket to backend
+  const backend = tls.connect({
+    host: BACKEND_HOST,
+    port: BACKEND_PORT,
+    servername: BACKEND_HOST, // force correct SNI
+    rejectUnauthorized: false
   });
 
-  clientSocket.on("message", (msg) => {
-    if (backendSocket.readyState === WebSocket.OPEN) {
-      backendSocket.send(msg);
-    }
+  // WS → Backend
+  ws.on("message", (msg) => {
+    backend.write(msg);
   });
 
-  backendSocket.on("message", (msg) => {
-    if (clientSocket.readyState === WebSocket.OPEN) {
-      clientSocket.send(msg);
-    }
+  // Backend → WS
+  backend.on("data", (data) => {
+    ws.send(data);
   });
 
-  clientSocket.on("close", () => backendSocket.close());
-  backendSocket.on("close", () => clientSocket.close());
+  ws.on("close", () => backend.end());
+  backend.on("close", () => ws.close());
 
-  backendSocket.on("error", () => clientSocket.close());
-  clientSocket.on("error", () => backendSocket.close());
+  ws.on("error", () => backend.destroy());
+  backend.on("error", () => ws.close());
 });
 
 server.listen(process.env.PORT || 3000);
