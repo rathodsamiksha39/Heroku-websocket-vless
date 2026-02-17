@@ -1,7 +1,7 @@
 {
   "name": "ws-forwarder",
   "version": "1.0.0",
-  "description": "WebSocket Forwarder for VLESS",
+  "description": "Heroku WebSocket Forwarder",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
