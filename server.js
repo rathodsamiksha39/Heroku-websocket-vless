@@ -1,49 +1,50 @@
 const http = require("http");
-const net = require("net");
-const tls = require("tls");
+const express = require("express");
 const WebSocket = require("ws");
+const net = require("net");
 
-const BACKEND_HOST = "india.satishcdn.com";
-const BACKEND_PORT = 443;
+const VPS_HOST = "206.189.133.133";   // Your VPS IP
+const VPS_PORT = 443;
 
-const server = http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end("Heroku TCP Tunnel Running");
-});
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-const wss = new WebSocket.Server({ noServer: true });
-
-server.on("upgrade", (req, socket, head) => {
-  wss.handleUpgrade(req, socket, head, (ws) => {
-    wss.emit("connection", ws, req);
-  });
+app.get("/", (req, res) => {
+  res.send("India VLESS WS Bridge Active");
 });
 
 wss.on("connection", (ws) => {
 
-  // 🔥 Create raw TLS socket to backend
-  const backend = tls.connect({
-    host: BACKEND_HOST,
-    port: BACKEND_PORT,
-    servername: BACKEND_HOST, // force correct SNI
-    rejectUnauthorized: false
+  const socket = new net.Socket();
+
+  socket.connect(VPS_PORT, VPS_HOST, () => {
+    console.log("Connected to VPS 206.189.133.133");
   });
 
-  // WS → Backend
   ws.on("message", (msg) => {
-    backend.write(msg);
+    socket.write(msg);
   });
 
-  // Backend → WS
-  backend.on("data", (data) => {
+  socket.on("data", (data) => {
     ws.send(data);
   });
 
-  ws.on("close", () => backend.end());
-  backend.on("close", () => ws.close());
+  ws.on("close", () => {
+    socket.destroy();
+  });
 
-  ws.on("error", () => backend.destroy());
-  backend.on("error", () => ws.close());
+  socket.on("close", () => {
+    ws.close();
+  });
+
+  socket.on("error", (err) => {
+    console.log("Socket error:", err.message);
+    ws.close();
+  });
 });
 
-server.listen(process.env.PORT || 3000);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log("Heroku WS bridge running");
+});
